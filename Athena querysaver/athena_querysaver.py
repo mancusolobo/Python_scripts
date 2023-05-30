@@ -61,10 +61,11 @@ path_consultas = pt.home() / "directory/consultas"
 path_data = pt.home() / "directory/data"
 
 clientes = crear_cliente(aws_access_key, aws_secret_key, aws_region, "athena", "s3")
-consultas = path_consultas.glob("*.sql")
-filename_max = max([len(qfile.stem) for qfile in consultas])
 
 if path_consultas.exists() and path_data.exists():
+    consultas = path_consultas.glob("*.sql")
+    filename_max = max([len(qfile.stem) for qfile in consultas])
+    
     for query_file in consultas:
         try:
             query_response = ejecutar_query(clientes['athena'], query_file.read_text(), schema_name, s3_staging_dir)
