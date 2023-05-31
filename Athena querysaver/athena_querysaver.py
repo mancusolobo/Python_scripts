@@ -66,7 +66,7 @@ if path_consultas.exists() and path_data.exists():
     consultas = path_consultas.glob("*.sql")
     filename_max = max([len(qfile.stem) for qfile in consultas])
     
-    for query_file in consultas:
+    for query_file in path_consultas.glob("*.sql"):
         try:
             query_response = ejecutar_query(clientes['athena'], query_file.read_text(), schema_name, s3_staging_dir)
             bajar_archivo(clientes['s3'], s3_bucket_name, query_response, path_data / f"{query_file.stem}.csv")
