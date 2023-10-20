@@ -49,9 +49,9 @@ def bajar_archivo(s3_client, s3_bucket_name, query_response, temp_file_location)
         temp_file_location
         )
 
-path_consultas = pt.home() / "directory/consultas"
-path_data = pt.home() / "directory/data"
-pass_file = path_consultas.parent / "./aws.conf"
+path_consultas = pt.home() / r"directory/consultas"
+path_data = pt.home() / r"directory/data"
+pass_file = path_consultas.parent / r"./aws.conf"
 
 try:
     aws_cred = json.loads(pass_file.read_text())
