@@ -1,6 +1,7 @@
 from pathlib import Path as pt
 import boto3
 import time
+import json
 
 def crear_cliente(aws_access_key, aws_secret_key, aws_region, *args):
     aws_clients = dict()
@@ -48,32 +49,53 @@ def bajar_archivo(s3_client, s3_bucket_name, query_response, temp_file_location)
         temp_file_location
         )
 
-aws_access_key = ""
-aws_secret_key = ""
-schema_name = "db_fake_analytics"
-s3_staging_dir = "s3://athena-fake-prod"
-aws_region = "us-east-1"
-s3_bucket_name = "athena-fake-prod"
-s3_output_directory = "s3://athena-fake-prod"
-temp_file_location = "athena_query_results.csv"
-
 path_consultas = pt.home() / "directory/consultas"
 path_data = pt.home() / "directory/data"
+pass_file = path_consultas.parent / "./aws.conf"
 
-clientes = crear_cliente(aws_access_key, aws_secret_key, aws_region, "athena", "s3")
+try:
+    aws_cred = json.loads(pass_file.read_text())
+except FileNotFoundError:
+    input(f"No se encontro el archivo de configuracion. Revise el mismo.")
+    exit()
+except json.JSONDecodeError:
+    input(f"Las credenciales estan en un formato erroneo. Revise las mismas.")
+    exit()
+except Exception as err:
+    input(f"Error desconocido. Favor revisar archivo de configuracion.\nDetalles del error:\n{err}")
+    exit()
+
+clientes = crear_cliente(aws_cred['aws_access_key'], aws_cred['aws_secret_key'], aws_cred['aws_region'], "athena", "s3")
 
 if path_consultas.exists() and path_data.exists():
-    consultas = path_consultas.glob("*.sql")
-    filename_max = max([len(qfile.stem) for qfile in consultas])
     
-    for query_file in path_consultas.glob("*.sql"):
+    consultas = list(path_consultas.glob("*.sql"))
+    print(f"Bienvenido al botcito de AWS!")
+    
+    if consultas:
+        filename_max = max([len(qfile.stem) for qfile in consultas])
+        print(f"Se encontraron {len(consultas)} consultas para descargar.")
+    else:
+        input(f"No se encontraron consultas para descargar. Presione enter para salir.")
+        exit()
+    
+    for query_file in consultas:
         try:
-            query_response = ejecutar_query(clientes['athena'], query_file.read_text(), schema_name, s3_staging_dir)
-            bajar_archivo(clientes['s3'], s3_bucket_name, query_response, path_data / f"{query_file.stem}.csv")
+            start_time = time.time()
+            query_response = ejecutar_query(clientes['athena'], query_file.read_text(), aws_cred['schema_name'], aws_cred['s3_staging_dir'])
+            bajar_archivo(clientes['s3'], aws_cred['s3_bucket_name'], query_response, path_data / f"{query_file.stem}.csv")
+            segundos = time.time() - start_time
         except clientes['athena'].exceptions.InvalidRequestException as err:
-            print(f"{query_file.stem:<{filename_max}} no ejecutada: {err}.")
+            print(f"{query_file.stem:<{filename_max}} no ejecutada, se procede a la proxima. Error:\n{err}.")
+        except clientes['athena'].exceptions.ClientError as err:
+            input(f"No se pudo generar el cliente. Verifique credenciales en la configuracion.\nEnter para salir.")
+            break
+        except Exception as err:
+            input(f'Se ha producido un error inesperado. Presione para salir.\nDetalles del error:\n{err}')
+            exit()
         else:
-            print(f"{query_file.stem:<{filename_max}} ejecutada.")
-    input("Se han descargado todas las consultas. Presione enter para salir.")
+            print(f"{query_file.stem:<{filename_max}} ejecutada ({round(segundos, 2)}s).")
+    else:
+        input("Se han descargado todas las consultas. Presione enter para salir.")
 else:
     input("Directorios de consulta y/o data no encontrados. Presione enter para salir.")
